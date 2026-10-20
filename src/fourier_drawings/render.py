@@ -14,12 +14,12 @@ matplotlib.rcParams['axes.edgecolor'] = '#ffffff'
 
 
 fig, ax = plt.subplots()
-format(fig, ax, 4)
+format(fig, ax)
 
 
 start = 0
-end = 2*pi*10
-step = 0.01
+end = 2*pi
+step = 0.001
 
 
 rng = np.linspace(start, end, num=int(end//step))
@@ -33,7 +33,9 @@ def render(
         ws: list[float],
         ph0s: list[float],
         ls: list[float],
-        speed: float = 20
+        speed: float = 20,
+        save_path: str | None = "output/fourier.mp4",
+        dpi: int = 150,
         ) -> None:
     x: list[float] = []
     y: list[float] = []
@@ -44,6 +46,13 @@ def render(
         xy: tuple[float, float] = calculate_for_n_circles(i, ws, ph0s, ls)[-1]
         x.append(xy[0])
         y.append(xy[1])
+
+    margin = 0.08
+    cx = (min(x) + max(x)) / 2
+    cy = (min(y) + max(y)) / 2
+    half = max(max(x) - min(x), max(y) - min(y)) / 2 * (1 + margin)
+    ax.set_xlim(cx - half, cx + half)
+    ax.set_ylim(cy - half, cy + half)
 
     # start plotting
     pl, = ax.plot(x, y, zorder=0) # type: ignore
@@ -88,8 +97,34 @@ def render(
 
         return [pl]
 
-    plt.get_current_fig_manager().full_screen_toggle() #type: ignore
+    n_frames = int(end//step)
+    ani = animation.FuncAnimation(fig, update, frames=n_frames, interval=speed, repeat=False) #type: ignore
 
-    ani = animation.FuncAnimation(fig, update, frames=int(end//step), interval=speed, repeat=False) #type: ignore
+    if save_path:
+        import os
 
-    plt.show() #type: ignore
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+
+        fps = max(1, round(1000 / speed))
+        writer = animation.FFMpegWriter(
+            fps=fps,
+            bitrate=-1,
+            metadata={"title": "Fourier epicycle drawing"},
+        )
+
+        def progress(i: int, total: int) -> None:
+            if i % 100 == 0 or i == total - 1:
+                print(f"frame {i + 1}/{total}", flush=True)
+
+        print(f"Saving {n_frames} frames at {fps} fps -> {save_path}", flush=True)
+        ani.save(
+            save_path,
+            writer=writer,
+            dpi=dpi,
+            savefig_kwargs={"facecolor": fig.get_facecolor()},
+            progress_callback=progress,
+        )
+        print(f"Done: {save_path}", flush=True)
+    else:
+        plt.get_current_fig_manager().full_screen_toggle() #type: ignore
+        plt.show() #type: ignore
